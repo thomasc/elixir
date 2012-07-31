@@ -108,6 +108,25 @@ defmodule IEx do
     end
   end
 
+  @doc """
+  Injects the Elixir code into a remote node so that
+  a IEx shell can be run.
+  After injection, on the remode node run:
+    elixir:start(normal, []).
+  then spawn a shell using the ^G menu:
+    --> s 'Elixir-IEx'
+    --> c
+  """
+  def inject(node) do
+    Enum.map :code.all_loaded, fn {m, _} ->
+      mname = atom_to_list m
+      if :lists.prefix('Elixir-', mname) or :lists.prefix('elixir', mname) do
+        ensure_module_exists node, m
+      end
+    end
+    :ok
+  end
+
   ## Boot Helpers
 
   defp boot_config(opts) do
