@@ -110,21 +110,39 @@ defmodule IEx do
 
   @doc """
   Injects the Elixir code into a remote node so that
-  a IEx shell can be run.
-  After injection, on the remode node run:
-    elixir:start(normal, []).
-  then spawn a shell using the ^G menu:
-    --> s 'Elixir-IEx'
-    --> c
+  a IEx shell can be run:
+  
+      IEx.inject :"node@host"
+
+  After injection you can start a remote IEx session
+  from the original IEx shell using the ^G menu:
+
+      --> r 'node@host' 'Elixir-IEx'
+      --> c
+      
+  Alternatively if you have a running erlang shell on
+  node@host you can start a local IEx shell there:
+
+      --> s 'Elixir-IEx'
+      --> c
+
   """
   def inject(node) do
-    Enum.map :code.all_loaded, fn {m, _} ->
-      mname = atom_to_list m
-      if :lists.prefix('Elixir-', mname) or :lists.prefix('elixir', mname) do
+    ebin = :filename.join [:code.lib_dir(:elixir), 'ebin']
+    {:ok, beam} = :file.list_dir ebin
+    lc m inlist [Elixir.Enum, Elixir.Code], do: ensure_module_exists node, m
+    Enum.map beam, fn mod ->
+      if :lists.suffix('.beam', mod) do
+        mod = :lists.sublist(mod, length(mod)-5)
+        m = list_to_atom(mod)
+        :code.ensure_loaded m
         ensure_module_exists node, m
       end
     end
-    :ok
+    {:ok, [app]} = :file.consult(:filename.join [:code.lib_dir(:elixir),
+                                                 'ebin', 'elixir.app'])
+    :rpc.call node, :application, :load, [app]
+    :rpc.call node, :application, :start, [:elixir]
   end
 
   ## Boot Helpers
